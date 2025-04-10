@@ -16,58 +16,89 @@ export const AppContextProvider = ({children})=>{
 
     const [chats, setChats] = useState([]);
     const [selectedChat, setSelectedChat] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     const createNewChat = async ()=>{
         try {
-            if(!user) return null;
+            if(!user) {
+                toast.error("Please sign in to create a new chat");
+                return null;
+            }
 
+            setIsLoading(true);
             const token = await getToken();
 
-            await axios.post('/api/chat/create', {}, {headers:{
-                Authorization: `Bearer ${token}`
-            }})
+            const response = await axios.post('/api/chat/create', {}, {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
 
-            fetchUsersChats();
+            if (response.data.success) {
+                toast.success("New chat created");
+                await fetchUsersChats();
+            } else {
+                toast.error(response.data.message || "Failed to create chat");
+            }
         } catch (error) {
-            toast.error(error.message)
+            console.error("Error creating chat:", error);
+            toast.error(error.message || "Failed to create chat");
+        } finally {
+            setIsLoading(false);
         }
     }
 
     const fetchUsersChats = async ()=>{
         try {
+            if (!user) return;
+            
+            setIsLoading(true);
             const token = await getToken();
-            const {data} = await axios.get('/api/chat/get', {headers:{
-                Authorization: `Bearer ${token}`
-            }})
+            
+            const {data} = await axios.get('/api/chat/get', {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
+            
             if(data.success){
-                console.log(data.data);
-                setChats(data.data)
+                console.log("Fetched chats:", data.data);
+                setChats(data.data);
 
-                 // If the user has no chats, create one
-                 if(data.data.length === 0){
+                // If the user has no chats, create one
+                if(data.data.length === 0){
                     await createNewChat();
-                    return fetchUsersChats();
-                 }else{
+                    return;
+                } else {
                     // sort chats by updated date
-                    data.data.sort((a, b)=> new Date(b.updatedAt) - new Date(a.updatedAt));
-
-                     // set recently updated chat as selected chat
-                     setSelectedChat(data.data[0]);
-                     console.log(data.data[0]);
-                 }
-            }else{
-                toast.error(data.message)
+                    const sortedChats = [...data.data].sort(
+                        (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)
+                    );
+                    
+                    // set recently updated chat as selected chat
+                    setSelectedChat(sortedChats[0]);
+                    console.log("Selected chat:", sortedChats[0]);
+                }
+            } else {
+                toast.error(data.message || "Failed to fetch chats");
             }
         } catch (error) {
-            toast.error(error.message)
+            console.error("Error fetching chats:", error);
+            toast.error(error.message || "Failed to fetch chats");
+        } finally {
+            setIsLoading(false);
         }
     }
 
- useEffect(()=>{
-    if(user){
-        fetchUsersChats();
-    }
- }, [user])
+    useEffect(() => {
+        if(user){
+            fetchUsersChats();
+        } else {
+            // Clear data when user logs out
+            setChats([]);
+            setSelectedChat(null);
+        }
+    }, [user]);
 
     const value = {
         user,
@@ -76,7 +107,8 @@ export const AppContextProvider = ({children})=>{
         selectedChat,
         setSelectedChat,
         fetchUsersChats,
-        createNewChat
+        createNewChat,
+        isLoading
     }
     
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>
