@@ -1,7 +1,6 @@
 "use client";
-import { useAuth, useUser } from "@clerk/nextjs";
-import axios from "axios";
 import { createContext, useContext, useEffect, useState } from "react";
+import axios from "axios";
 import toast from "react-hot-toast";
 
 export const AppContext = createContext();
@@ -11,29 +10,15 @@ export const useAppContext = ()=>{
 }
 
 export const AppContextProvider = ({children})=>{
-    const {user} = useUser()
-    const {getToken} = useAuth()
-
     const [chats, setChats] = useState([]);
     const [selectedChat, setSelectedChat] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
 
     const createNewChat = async ()=>{
         try {
-            if(!user) {
-                toast.error("Please sign in to create a new chat");
-                return null;
-            }
-
             setIsLoading(true);
-            const token = await getToken();
-
-            const response = await axios.post('/api/chat/create', {}, {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
-            });
-
+            const response = await axios.post('/api/chat/create');
+            
             if (response.data.success) {
                 toast.success("New chat created");
                 await fetchUsersChats();
@@ -50,22 +35,14 @@ export const AppContextProvider = ({children})=>{
 
     const fetchUsersChats = async ()=>{
         try {
-            if (!user) return;
-            
             setIsLoading(true);
-            const token = await getToken();
-            
-            const {data} = await axios.get('/api/chat/get', {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
-            });
+            const {data} = await axios.get('/api/chat/get');
             
             if(data.success){
                 console.log("Fetched chats:", data.data);
                 setChats(data.data);
 
-                // If the user has no chats, create one
+                // If there are no chats, create one
                 if(data.data.length === 0){
                     await createNewChat();
                     return;
@@ -91,17 +68,10 @@ export const AppContextProvider = ({children})=>{
     }
 
     useEffect(() => {
-        if(user){
-            fetchUsersChats();
-        } else {
-            // Clear data when user logs out
-            setChats([]);
-            setSelectedChat(null);
-        }
-    }, [user]);
+        fetchUsersChats();
+    }, []);
 
     const value = {
-        user,
         chats,
         setChats,
         selectedChat,
